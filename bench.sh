@@ -15,7 +15,7 @@ fi
 DEVICES=$@
 
 echo " + Install packages for test prep and benchmarks"
-apt-get install -y --force-yes dmcrypt fio parted xfsprogs collectl
+apt-get install -y --force-yes cryptsetup fio parted xfsprogs collectl
 
 for device in ${DEVICES}
 do
@@ -46,7 +46,7 @@ do
         --direct=1 \
         --numjobs 1 \
         --runtime 300 \
-        --size 16G \
+        --size 1G \
         --bs=4M \
         --name=${device}1 \
         --name=/mnt/${device_basename}2
@@ -60,7 +60,7 @@ do
         --direct=1 \
         --numjobs 1 \
         --runtime 300 \
-        --size 16G \
+        --size 1G \
         --bs=4K \
         --name=${device}1 \
         --name=/mnt/${device_basename}2
@@ -74,7 +74,7 @@ do
         --direct=1 \
         --numjobs 1 \
         --runtime 300 \
-        --size 16G \
+        --size 1G \
         --bs=4K \
         --name=${device}1 \
         --name=/mnt/${device_basename}2
