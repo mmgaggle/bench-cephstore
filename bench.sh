@@ -13,7 +13,7 @@ echo " + Update package manifests"
 apt-get -q update
 
 echo " + Install packages for test prep and benchmarks"
-apt-get install -qy --force-yes cryptsetup fio parted xfsprogs collectl pciutils ethtool ipmitool
+apt-get install -qy --force-yes cryptsetup fio parted xfsprogs collectl pciutils ethtool ipmitool dmidecode
 
 for device in ${DEVICES}
 do
@@ -43,55 +43,40 @@ done
 # Gather Machine Information
 # Replace with Ohai?
 
-cat /proc/cpuinfo >> /tmp/bench.log
-dmidecode -t 16 >> /tmp/bench.log
-dmidecode -t 17 >> /tmp/bench.log
+cat /proc/cpuinfo >> /tmp/bench-system-info.log
+dmidecode -t 16 >> /tmp/bench-system-info.log
+dmidecode -t 17 >> /tmp/bench-system-info.log
 lspci >> /tmp/bench.log
 
-echo "Running 4MB random write benchmark (RADOS max object size)"
-echo " + FSync and drop linux page cache"
-sync && echo 3 > /proc/sys/vm/drop_caches
-echo " + Begin test"
-fio --rw=write \
-    --ioengine=libaio \
-    --iodepth=16 \
-    --direct=1 \
-    --numjobs 1 \
-    --runtime 300 \
-    --size 1G \
-    --bs=4M \
-    --name=${device}1 \
-    --name=/mnt/${device_basename}2
+function flexible_io_test {
+  description=$1
+  rw=$2
+  ioengine=$3
+  block_size=$4
+  
+  echo ${description}
+  echo " + FSync and drop linux page cache"
+  sync && echo 3 > /proc/sys/vm/drop_caches
+  echo " + Begin test"
+  echo fio --rw=${rw} \
+      --ioengine=${ioengine}\
+      --iodepth=16 \
+      --direct=1 \
+      --numjobs 1 \
+      --runtime 300 \
+      --size 1G \
+      --bs=${block_size} \
+      --name=${device}1 \
+      --name=/mnt/${device_basename}2 | tee -a /tmp/bench-fio-${rw}-${ioengine}-${block_size}
+}
 
-echo "Running 4KB random write benchmark (InnoDB 4K pagesize)"
-echo " + FSync and drop linux page cache"
-sync && echo 3 > /proc/sys/vm/drop_caches
-echo " + Begin test"
-fio --rw=write \
-    --ioengine=libaio \
-    --iodepth=16 \
-    --direct=1 \
-    --numjobs 1 \
-    --runtime 300 \
-    --size 1G \
-    --bs=4K \
-    --name=${device}1 \
-    --name=/mnt/${device_basename}2
+flexible_io_test("Running 4MB random write benchmark (RADOS max object size)","write","libaio","4M")
+flexible_io_test("Running 4KB random write benchmark (InnoDB 4K pagesize)","write","libaio","4K")
+flexible_io_test("Running 8KB random write benchmark (InnoDB 4K pagesize)","write","libaio","8K")
 
-echo "Running 8KB random write benchmark (InnoDB 8K pagesize)"
-echo " + FSync and drop linux page cache"
-sync && echo 3 > /proc/sys/vm/drop_caches
-echo " + Begin test"
-fio --rw=write \
-    --ioengine=libaio \
-    --iodepth=16 \
-    --direct=1 \
-    --numjobs 1 \
-    --runtime 300 \
-    --size 1G \
-    --bs=8K \
-    --name=${device}1 \
-    --name=/mnt/${device_basename}2
+flexible_io_test("Running 4MB sync write benchmark", "write","sync","4M")
+flexible_io_test("Running 4KB sync write benchmark", "write","sync","4K")
+flexible_io_test("Running 8KB sync benchmark","write","sync","8K")
 
 echo " -> Running OpenSSL AES CBC benchmarks"
 openssl speed aes-128-cbc aes-192-cbc aes-256-cbc
